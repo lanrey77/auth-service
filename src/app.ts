@@ -8,6 +8,8 @@ import { env } from "./config/env";
 import { errorHandler } from "./common/errors/error-handler";
 import { notFound } from "./common/middleware/not-found";
 
+import { createUserModule } from "./modules/users/user.module";
+
 const app = express();
 
 app.disable("x-powered-by");
@@ -53,6 +55,10 @@ app.get("/health", (_req, res) => {
 });
 
 // Feature routes will be registered here.
+app.use(
+  "/api/v1/users",
+  createUserModule()
+);
 
 app.use(notFound);
 
