@@ -13,6 +13,12 @@ import { IUserRepository } from "../repositories/user.repository.interface";
 import { RegisterUserDto } from "../dto/register-user.dto";
 import { UpdateUserDto } from "../dto/update-user.dto";
 
+import {
+    EmailVerificationService
+} from "../../email-verification/services/email-verification.service";
+
+import { logger } from "../../../infrastructure/logger/logger";
+
 const LOCKOUT_MAX_ATTEMPTS = 5;
 
 const LOCKOUT_DURATION_MS =
@@ -39,7 +45,9 @@ export interface PublicUser {
 export class UserService {
 
     constructor(
-        private readonly userRepository: IUserRepository
+        private readonly userRepository: IUserRepository,
+        private readonly emailVerificationService:
+            EmailVerificationService
     ) { }
 
     async register(
@@ -83,6 +91,26 @@ export class UserService {
                 roles: []
             });
 
+            try {
+
+                await this.emailVerificationService.sendVerification(
+                    user._id,
+                    user.email
+                );
+
+            } catch (error) {
+
+                // Registration remains successful.
+                // User can request another verification email.
+                logger.error(
+                    {
+                        userId: user.id,
+                        err: error
+                    },
+                    "Verification email delivery failed"
+                );
+            }
+
             // return user;
             return {
                 id: user.id,
@@ -110,6 +138,8 @@ export class UserService {
 
             throw error;
         }
+
+
     }
 
     async getUserById(
@@ -197,5 +227,17 @@ export class UserService {
             hashedPassword,
             plainPassword
         );
+    }
+
+    async verifyEmail(token: string): Promise<void> {
+
+        await this.emailVerificationService.verifyEmail(token);
+
+    }
+
+    async resendVerification(email: string): Promise<void> {
+
+        await this.emailVerificationService.resendVerification(email);
+
     }
 }

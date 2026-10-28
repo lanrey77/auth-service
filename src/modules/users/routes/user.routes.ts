@@ -23,5 +23,15 @@ export function createUserRoutes(
     userController.updateProfile
   );
 
+  router.post(
+    "/verify-email",
+    userController.verifyEmail
+  );
+
+  router.post(
+    "/resend-verification",
+    userController.resendVerification
+  );
+
   return router;
 }

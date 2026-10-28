@@ -33,7 +33,21 @@ const envSchema = z.object({
     "none"
   ]).default("lax"),
 
-  FRONTEND_URL: z.string().url()
+  FRONTEND_URL: z.string().url(),
+
+
+  SMTP_HOST: z.string().min(1),
+  SMTP_PORT: z.coerce.number().int().positive(),
+  SMTP_SECURE: z.enum(["true", "false"])
+    .default("false")
+    .transform(value => value === "true"),
+  SMTP_USER: z.string().min(1),
+  SMTP_PASSWORD: z.string().min(1),
+  EMAIL_FROM: z.string().email(),
+
+  EMAIL_VERIFICATION_URL: z.string().url(),
+  EMAIL_VERIFICATION_EXPIRES_MINUTES:
+    z.coerce.number().int().positive().default(30),
 });
 
 const result = envSchema.safeParse(process.env);
