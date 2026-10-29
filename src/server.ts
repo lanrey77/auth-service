@@ -2,10 +2,13 @@ import app from "./app";
 import { env } from "./config/env";
 import { connectDatabase } from "./config/database";
 import { logger } from "./infrastructure/logger/logger";
+import { connectRedis } from "./infrastructure/redis/redis";
 
 async function bootstrap(): Promise<void> {
   try {
     await connectDatabase();
+
+    await connectRedis();
 
     const server = app.listen(env.PORT, () => {
       logger.info(

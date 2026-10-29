@@ -1,4 +1,5 @@
-import { Types } from "mongoose";
+import { Types, ClientSession } from "mongoose";
+
 
 import {
     IUser,
@@ -31,8 +32,7 @@ export interface IUserRepository {
 
     recordFailedLogin(
         userId: Types.ObjectId,
-        maxAttempts: number,
-        lockDurationMs: number
+        maxAttempts: number
     ): Promise<void>;
 
     resetFailedLoginAttempts(
@@ -47,4 +47,17 @@ export interface IUserRepository {
         userId: Types.ObjectId,
         data: Partial<Pick<IUser, "firstName" | "lastName">>
     ): Promise<UserDocument | null>;
+
+
+    findByIdWithPassword(
+        id: Types.ObjectId,
+        session?: ClientSession
+    ): Promise<UserDocument | null>;
+
+    updatePassword(
+        userId: Types.ObjectId,
+        currentPasswordHash: string,
+        newPasswordHash: string,
+        session: ClientSession
+    ): Promise<boolean>;
 }

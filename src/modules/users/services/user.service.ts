@@ -1,11 +1,12 @@
 import argon2 from "argon2";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 
 import { AppError } from "../../../common/errors/app-error";
 
 import {
     IUser,
-    UserDocument
+    UserDocument,
+    UserModel
 } from "../models/user.model";
 
 import { IUserRepository } from "../repositories/user.repository.interface";
@@ -18,6 +19,10 @@ import {
 } from "../../email-verification/services/email-verification.service";
 
 import { logger } from "../../../infrastructure/logger/logger";
+
+import { ChangePasswordDto } from "../dto/change-password.dto";
+
+import { SessionRevocationService } from "../../sessions/session-revocation.service";
 
 const LOCKOUT_MAX_ATTEMPTS = 5;
 
@@ -46,8 +51,8 @@ export class UserService {
 
     constructor(
         private readonly userRepository: IUserRepository,
-        private readonly emailVerificationService:
-            EmailVerificationService
+        private readonly emailVerificationService: EmailVerificationService,
+        private readonly sessionRevocationService: SessionRevocationService
     ) { }
 
     async register(
@@ -198,16 +203,6 @@ export class UserService {
         return user.lockUntil.getTime() > Date.now();
     }
 
-    async recordFailedLogin(
-        userId: Types.ObjectId
-    ): Promise<void> {
-
-        await this.userRepository.recordFailedLogin(
-            userId,
-            LOCKOUT_MAX_ATTEMPTS,
-            LOCKOUT_DURATION_MS
-        );
-    }
 
     async resetFailedLoginAttempts(
         userId: Types.ObjectId
@@ -218,10 +213,7 @@ export class UserService {
         );
     }
 
-    async verifyPassword(
-        plainPassword: string,
-        hashedPassword: string
-    ): Promise<boolean> {
+    async verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
 
         return argon2.verify(
             hashedPassword,
@@ -239,5 +231,86 @@ export class UserService {
 
         await this.emailVerificationService.resendVerification(email);
 
+    }
+
+    async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+
+        if (!Types.ObjectId.isValid(userId)) {
+            throw new AppError("Invalid user ID", 400);
+        }
+
+        const objectId = new Types.ObjectId(userId);
+
+        const user = await this.userRepository.findByIdWithPassword(
+            objectId
+        );
+
+        if (!user) {
+            throw new AppError("User not found", 404);
+        }
+
+        if (!user.isActive) {
+            throw new AppError("Account is inactive", 403);
+        }
+
+        const currentPasswordValid = await argon2.verify(
+            user.password,
+            dto.currentPassword
+        );
+
+        if (!currentPasswordValid) {
+            throw new AppError("Current password is incorrect", 400);
+        }
+
+        const samePassword = await argon2.verify(
+            user.password,
+            dto.newPassword
+        );
+
+        if (samePassword) {
+            throw new AppError(
+                "New password must be different from current password",
+                400
+            );
+        }
+
+        const newPasswordHash = await argon2.hash(
+            dto.newPassword,
+            ARGON2_OPTIONS
+        );
+
+        const session = await mongoose.startSession();
+
+        try {
+
+            await session.withTransaction(async () => {
+
+                const updated =
+                    await this.userRepository.updatePassword(
+                        objectId,
+                        user.password,
+                        newPasswordHash,
+                        session
+                    );
+
+                if (!updated) {
+                    throw new AppError(
+                        "Password was changed by another request. Please try again.",
+                        409
+                    );
+                }
+
+                await this.sessionRevocationService.revokeAllForUser(
+                    objectId,
+                    "password_changed",
+                    session
+                );
+
+            });
+
+        } finally {
+
+            await session.endSession();
+        }
     }
 }

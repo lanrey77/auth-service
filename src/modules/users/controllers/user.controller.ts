@@ -8,13 +8,11 @@ import { z } from "zod";
 
 import { UserService } from "../services/user.service";
 
-import {
-    registerUserSchema
-} from "../dto/register-user.dto";
+import { registerUserSchema } from "../dto/register-user.dto";
 
-import {
-    updateUserSchema
-} from "../dto/update-user.dto";
+import { updateUserSchema } from "../dto/update-user.dto";
+
+import { changePasswordSchema } from "../dto/change-password.dto";
 
 export class UserController {
 
@@ -143,6 +141,31 @@ export class UserController {
                 success: true,
                 message:
                     "If the account requires verification, instructions will be sent."
+            });
+
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    changePassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+
+        try {
+
+            // req.user will be populated by authentication middleware.
+            const userId = req.user!.id;
+
+            const dto = changePasswordSchema.parse(req.body);
+
+            await this.userService.changePassword(
+                userId,
+                dto
+            );
+
+            res.status(200).json({
+                success: true,
+                message:
+                    "Password changed successfully. Please log in again."
             });
 
         } catch (error) {

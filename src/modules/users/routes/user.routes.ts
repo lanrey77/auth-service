@@ -2,6 +2,11 @@ import { Router } from "express";
 
 import { UserController } from "../controllers/user.controller";
 
+import {
+  registrationLimiter,
+  verificationResendLimiter
+} from "../../../common/middleware/rate-limiters";
+
 export function createUserRoutes(
   userController: UserController
 ): Router {
@@ -10,6 +15,7 @@ export function createUserRoutes(
 
   router.post(
     "/register",
+    registrationLimiter,
     userController.register
   );
 
@@ -30,7 +36,14 @@ export function createUserRoutes(
 
   router.post(
     "/resend-verification",
+    verificationResendLimiter,
     userController.resendVerification
+  );
+
+  router.post(
+    "/change-password",
+    // authenticate,
+    userController.changePassword
   );
 
   return router;

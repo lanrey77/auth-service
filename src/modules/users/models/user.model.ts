@@ -21,6 +21,8 @@ export interface IUser {
 
   authorizationVersion: number;
 
+  lastFailedLoginAt: Date | null;
+
   roles: Types.ObjectId[];
 
   createdAt: Date;
@@ -92,11 +94,17 @@ const userSchema = new Schema<IUser>(
       min: 0
     },
 
+    lastFailedLoginAt: {
+      type: Date,
+      default: null
+    },
+
     roles: [{
       type: Schema.Types.ObjectId,
       ref: "Role"
     }]
   },
+
   {
     timestamps: true,
     versionKey: false,

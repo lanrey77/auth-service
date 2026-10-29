@@ -10,12 +10,15 @@ import { EmailVerificationService } from "../email-verification/services/email-v
 
 import { SmtpEmailService } from "../../infrastructure/email/smtp-email.service";
 
+import {
+  SessionRevocationService
+} from "../sessions/session-revocation.service";
+
 export function createUserModule(): Router {
 
   const userRepository = new UserRepository();
 
-  const verificationRepository =
-    new EmailVerificationRepository();
+  const verificationRepository = new EmailVerificationRepository();
 
   const emailService = new SmtpEmailService();
 
@@ -26,9 +29,13 @@ export function createUserModule(): Router {
       emailService
     );
 
+
+  const sessionRevocationService = new SessionRevocationService();
+
   const userService = new UserService(
     userRepository,
-    verificationService
+    verificationService,
+    sessionRevocationService
   );
 
   const userController = new UserController(

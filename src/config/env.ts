@@ -48,6 +48,8 @@ const envSchema = z.object({
   EMAIL_VERIFICATION_URL: z.string().url(),
   EMAIL_VERIFICATION_EXPIRES_MINUTES:
     z.coerce.number().int().positive().default(30),
+
+  REDIS_URL: z.string().url(),
 });
 
 const result = envSchema.safeParse(process.env);

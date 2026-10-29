@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { Types, ClientSession } from "mongoose";
 
 import {
     IUser,
@@ -55,15 +55,15 @@ export class UserRepository implements IUserRepository {
             .exec();
     }
 
+
     async recordFailedLogin(
         userId: Types.ObjectId,
-        maxAttempts: number,
-        lockDurationMs: number
+        maxAttempts: number
     ): Promise<void> {
 
-        const lockUntil = new Date(
-            Date.now() + lockDurationMs
-        );
+        const baseLockDuration = 15 * 60 * 1000;
+
+        const maximumLockDuration = 24 * 60 * 60 * 1000;
 
         await UserModel.updateOne(
             {
@@ -74,12 +74,20 @@ export class UserRepository implements IUserRepository {
                     $set: {
                         failedLoginAttempts: {
                             $add: [
-                                { $ifNull: ["$failedLoginAttempts", 0] },
+                                {
+                                    $ifNull: [
+                                        "$failedLoginAttempts",
+                                        0
+                                    ]
+                                },
                                 1
                             ]
-                        }
+                        },
+
+                        lastFailedLoginAt: "$$NOW"
                     }
                 },
+
                 {
                     $set: {
                         lockUntil: {
@@ -90,7 +98,45 @@ export class UserRepository implements IUserRepository {
                                         maxAttempts
                                     ]
                                 },
-                                lockUntil,
+
+                                {
+                                    $add: [
+                                        "$$NOW",
+
+                                        {
+                                            $min: [
+                                                maximumLockDuration,
+
+                                                {
+                                                    $multiply: [
+                                                        baseLockDuration,
+
+                                                        {
+                                                            $pow: [
+                                                                2,
+
+                                                                {
+                                                                    $floor: {
+                                                                        $divide: [
+                                                                            {
+                                                                                $subtract: [
+                                                                                    "$failedLoginAttempts",
+                                                                                    maxAttempts
+                                                                                ]
+                                                                            },
+                                                                            maxAttempts
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+
                                 "$lockUntil"
                             ]
                         }
@@ -135,5 +181,45 @@ export class UserRepository implements IUserRepository {
                 runValidators: true
             }
         ).exec();
+    }
+
+    async findByIdWithPassword(
+        id: Types.ObjectId,
+        session?: ClientSession
+    ): Promise<UserDocument | null> {
+
+        return UserModel.findById(id)
+            .select("+password")
+            .session(session ?? null)
+            .exec();
+    }
+
+    async updatePassword(
+        userId: Types.ObjectId,
+        currentPasswordHash: string,
+        newPasswordHash: string,
+        session: ClientSession
+    ): Promise<boolean> {
+
+        const result = await UserModel.updateOne(
+            {
+                _id: userId,
+                password: currentPasswordHash
+            },
+            {
+                $set: {
+                    password: newPasswordHash,
+                    passwordChangedAt: new Date()
+                },
+                $inc: {
+                    authorizationVersion: 1
+                }
+            },
+            {
+                session
+            }
+        ).exec();
+
+        return result.modifiedCount === 1;
     }
 }
